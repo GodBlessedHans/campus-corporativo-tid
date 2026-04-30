@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function Form({ fields, onSubmit }) {
+export default function Form({ fields, onSubmit, submitLabel = "Enviar" }) {
   const [formData, setFormData] = useState({});
 
   const handleChange = (e) => {
@@ -27,7 +27,7 @@ export default function Form({ fields, onSubmit }) {
           />
         </div>
       ))}
-      <button type="submit">Enviar</button>
+      <button type="submit">{submitLabel}</button>
     </form>
   );
 }
