@@ -1,7 +1,10 @@
+import { useNavigate } from "react-router-dom";
 import Form from "../../components/Form";
 import { showAlert } from "../../helpers/alerts";
 
 export default function Login() {
+  const navigate = useNavigate();
+  
   const fields = [
     { label: "Email", type: "email", name: "email" },
     { label: "Password", type: "password", name: "password" }
@@ -17,6 +20,7 @@ export default function Login() {
     if (formData.email === "admin@tid.com" && formData.password === "123456") {
       showAlert("¡Bienvenido!", "Has iniciado sesión correctamente", "success");
       localStorage.setItem("user", JSON.stringify({ email: formData.email }));
+      navigate("/"); // Redirige al dashboard o home
     } else {
       showAlert("Error", "Credenciales incorrectas", "error");
     }
