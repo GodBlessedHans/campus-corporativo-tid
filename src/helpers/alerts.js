@@ -15,7 +15,6 @@ export const showAlert = (title, text, icon) => {
   });
 };
 
-<<<<<<< HEAD
 
 import iziToast from 'izitoast';
 
@@ -77,5 +76,3 @@ export function confirm({
     });
   });
 }
-=======
->>>>>>> 6722aa8690f9bd433942d44a12e37c004bd30899
