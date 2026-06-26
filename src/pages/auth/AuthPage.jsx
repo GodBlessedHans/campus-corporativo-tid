@@ -100,6 +100,18 @@ function LoginView({ loading, setLoading, goToRecover, goToRegister, onAuthentic
       </p>
       <div style={{ background: COLORS.surface2, borderRadius: 8, padding: '12px 16px', fontSize: 12, color: COLORS.textMuted }}>
         <strong style={{ color: COLORS.textSecondary }}>Demo:</strong> carlos@tid.com / 123456
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={() => {
+            tidApi.setAdminLocalSession();
+            toast.success('Sesión admin local cargada');
+            onAuthenticated();
+          }}
+          style={{ marginTop: 10, width: '100%', justifyContent: 'center' }}
+        >
+          Usar admin local
+        </button>
       </div>
     </form>
   );

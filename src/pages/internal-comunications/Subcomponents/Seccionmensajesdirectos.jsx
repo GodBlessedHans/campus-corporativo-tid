@@ -6,17 +6,12 @@ import { tidApi } from '../../../services/tid.js';
 import { Send } from 'lucide-react';
 
 export default function SeccionMensajesDirectos({ session, contactos = [] }) {
-  const [selectedContact, setSelectedContact] = React.useState(contactos[0] || null);
+  const [selectedContactId, setSelectedContactId] = React.useState(contactos[0]?.id || null);
   const [messages, setMessages] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
   const [sending, setSending] = React.useState(false);
   const [content, setContent] = React.useState('');
-
-  React.useEffect(() => {
-    if (!selectedContact && contactos.length) {
-      setSelectedContact(contactos[0]);
-    }
-  }, [contactos, selectedContact]);
+  const selectedContact = contactos.find((contacto) => Number(contacto.id) === Number(selectedContactId)) || contactos[0] || null;
 
   React.useEffect(() => {
     let active = true;
@@ -77,7 +72,7 @@ export default function SeccionMensajesDirectos({ session, contactos = [] }) {
             <button
               key={contacto.id}
               className={`btn ${selectedContact?.id === contacto.id ? 'btn-primary' : 'btn-secondary'}`}
-              onClick={() => setSelectedContact(contacto)}
+              onClick={() => setSelectedContactId(contacto.id)}
               style={{ justifyContent: 'flex-start' }}
             >
               {contacto.nombre} · {contacto.rol}

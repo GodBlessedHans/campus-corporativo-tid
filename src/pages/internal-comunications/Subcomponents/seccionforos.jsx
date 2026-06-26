@@ -1,9 +1,9 @@
 import React from 'react';
 import { EmptyState, FormField, Modal } from '../../../components/components.jsx';
 import { COLORS } from '../../../components/theme.js';
-import { toast } from '../../../helpers/alerts.js';
+import { confirm, toast } from '../../../helpers/alerts.js';
 import { tidApi } from '../../../services/tid.js';
-import { MessageCircle, Plus, ThumbsUp } from 'lucide-react';
+import { MessageCircle, Pencil, Plus, ThumbsUp, Trash2 } from 'lucide-react';
 
 export default function SeccionForos({ session, foros = [], revalidator }) {
   const [open, setOpen] = React.useState(false);
@@ -11,8 +11,28 @@ export default function SeccionForos({ session, foros = [], revalidator }) {
   const [commentingId, setCommentingId] = React.useState(null);
   const [form, setForm] = React.useState({ titulo: '', categoria: 'General', contenido: '' });
   const [comments, setComments] = React.useState({});
+  const isAdmin = session?.rol === 'Admin';
+  const isEditing = Boolean(form.id);
 
-  const handleCreate = async () => {
+  const canManage = (foro) => isAdmin || Number(foro.authorId) === Number(session?.id);
+
+  const openCreate = () => {
+    setForm({ titulo: '', categoria: 'General', contenido: '' });
+    setOpen(true);
+  };
+
+  const openEdit = (foro) => {
+    setForm({
+      id: foro.id,
+      authorId: foro.authorId,
+      titulo: foro.titulo,
+      categoria: foro.categoria || 'General',
+      contenido: foro.contenido || foro.comentarios?.[0]?.contenido || '',
+    });
+    setOpen(true);
+  };
+
+  const handleSave = async () => {
     if (!form.titulo.trim() || !form.categoria.trim() || !form.contenido.trim()) {
       toast.warning('Completa título, categoría y contenido', 'Campos requeridos');
       return;
@@ -20,20 +40,45 @@ export default function SeccionForos({ session, foros = [], revalidator }) {
 
     setSaving(true);
     try {
-      await tidApi.createForo({
+      const payload = {
         titulo: form.titulo.trim(),
         categoria: form.categoria.trim(),
         contenido: form.contenido.trim(),
-        autorId: session.id,
-      });
+        autorId: form.authorId || session.id,
+        requesterId: session.id,
+        requesterRole: session.rol,
+      };
+
+      if (isEditing) await tidApi.updateForo(form.id, payload);
+      else await tidApi.createForo(payload);
+
       setOpen(false);
       setForm({ titulo: '', categoria: 'General', contenido: '' });
-      toast.success('Foro creado');
+      toast.success(isEditing ? 'Post actualizado' : 'Post creado');
       revalidator.revalidate();
     } catch (error) {
-      toast.error(error.message || 'No se pudo crear el foro');
+      toast.error(error.message || 'No se pudo guardar el post');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDelete = async (foro) => {
+    const ok = await confirm({
+      title: 'Eliminar post',
+      message: foro.titulo,
+      okText: 'Eliminar',
+      cancelText: 'Cancelar',
+      color: COLORS.danger,
+    });
+    if (!ok) return;
+
+    try {
+      await tidApi.deleteForo(foro.id, { requesterId: session.id, requesterRole: session.rol });
+      toast.success('Post eliminado');
+      revalidator.revalidate();
+    } catch (error) {
+      toast.error(error.message || 'No se pudo eliminar el post');
     }
   };
 
@@ -69,7 +114,7 @@ export default function SeccionForos({ session, foros = [], revalidator }) {
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        <button className="btn btn-primary" onClick={() => setOpen(true)}>
+        <button className="btn btn-primary" onClick={openCreate}>
           <Plus size={16} /> Crear post
         </button>
       </div>
@@ -89,9 +134,21 @@ export default function SeccionForos({ session, foros = [], revalidator }) {
                       {foro.autor || 'Campus TID'} · {foro.fecha}
                     </p>
                   </div>
-                  <button className="btn btn-secondary btn-sm" onClick={() => handleVote(foro)}>
-                    <ThumbsUp size={14} /> {foro.votos}
-                  </button>
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => handleVote(foro)}>
+                      <ThumbsUp size={14} /> {foro.votos}
+                    </button>
+                    {canManage(foro) && (
+                      <>
+                        <button className="btn btn-secondary btn-sm" onClick={() => openEdit(foro)} style={{ padding: '6px 10px' }}>
+                          <Pencil size={14} />
+                        </button>
+                        <button className="btn btn-danger btn-sm" onClick={() => handleDelete(foro)} style={{ padding: '6px 10px' }}>
+                          <Trash2 size={14} />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="card-body" style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -131,12 +188,12 @@ export default function SeccionForos({ session, foros = [], revalidator }) {
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Crear post de foro"
+        title={isEditing ? 'Editar post de foro' : 'Crear post de foro'}
         footer={
           <>
             <button className="btn btn-secondary" onClick={() => setOpen(false)}>Cancelar</button>
-            <button className="btn btn-primary" disabled={saving} onClick={handleCreate}>
-              {saving ? 'Guardando...' : 'Publicar'}
+            <button className="btn btn-primary" disabled={saving} onClick={handleSave}>
+              {saving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Publicar'}
             </button>
           </>
         }

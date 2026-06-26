@@ -213,33 +213,39 @@ const mapAttendance = (attendance) => ({
 
 const mapAnnouncement = (announcement) => ({
   id: announcement.id,
-  titulo: announcement.title,
-  contenido: announcement.content,
+  titulo: announcement.title || announcement.titulo,
+  contenido: announcement.content || announcement.contenido,
   fecha: toDate(announcement.date || announcement.createdAt),
-  autor: 'Campus TID',
-  prioridad: 'Media',
+  authorId: announcement.authorId || announcement.autorId,
+  autor: announcement.authorName || announcement.autor || 'Campus TID',
+  prioridad: announcement.priority || announcement.prioridad || 'Media',
 });
 
-const mapForum = (forum) => ({
-  id: forum.id,
-  titulo: forum.title,
-  title: forum.title,
-  categoria: forum.category,
-  category: forum.category,
-  contenido: forum.content || '',
-  authorId: forum.authorId,
-  autor: forum.authorName,
-  votos: forum.votes || 0,
-  respuestas: forum.repliesCount || 0,
-  fecha: toDate(forum.createdAt),
-  comentarios: (forum.comments || []).map((comment) => ({
-    id: comment.id,
-    authorId: comment.authorId,
-    autor: comment.authorName,
-    contenido: comment.content,
-    fecha: toDate(comment.createdAt),
-  })),
-});
+const mapForum = (forum) => {
+  const comments = forum.comments || [];
+  const contentFromFirstComment = comments[0]?.content || '';
+  const visibleComments = forum.content ? comments : comments.slice(1);
+  return {
+    id: forum.id,
+    titulo: forum.title,
+    title: forum.title,
+    categoria: forum.category,
+    category: forum.category,
+    contenido: forum.content || contentFromFirstComment,
+    authorId: forum.authorId,
+    autor: forum.authorName,
+    votos: forum.votes || 0,
+    respuestas: visibleComments.length,
+    fecha: toDate(forum.createdAt),
+    comentarios: visibleComments.map((comment) => ({
+      id: comment.id,
+      authorId: comment.authorId,
+      autor: comment.authorName,
+      contenido: comment.content,
+      fecha: toDate(comment.createdAt),
+    })),
+  };
+};
 
 const mapDirectMessage = (message) => ({
   id: message.id,
@@ -283,6 +289,27 @@ export const tidApi = {
 
   logout() {
     tidStorage.remove('session');
+  },
+
+  setAdminLocalSession() {
+    const session = {
+      id: 1,
+      firstName: 'Admin',
+      lastName: 'Local',
+      nombre: 'Admin Local',
+      email: 'admin.local@tid.com',
+      phone: '3000000000',
+      telefono: '3000000000',
+      document: 'ADMIN-LOCAL',
+      documento: 'ADMIN-LOCAL',
+      address: 'LocalStorage',
+      direccion: 'LocalStorage',
+      role: 'ADMIN',
+      rol: 'Admin',
+      area: 'Admin',
+    };
+    tidStorage.set('session', session);
+    return session;
   },
 
   async getCursos() {
@@ -369,6 +396,31 @@ export const tidApi = {
     return mapForum(forum);
   },
 
+  async updateForo(id, data) {
+    const forum = await request(`/forums/${id}`, {
+      method: 'PUT',
+      body: {
+        title: data.title || data.titulo,
+        category: data.category || data.categoria,
+        content: data.content || data.contenido,
+        authorId: toNumberOrNull(data.authorId || data.autorId),
+        requesterId: toNumberOrNull(data.requesterId || data.solicitanteId || data.authorId || data.autorId),
+        requesterRole: roleValue(data.requesterRole || data.solicitanteRol || data.rol),
+      },
+    });
+    return mapForum(forum);
+  },
+
+  async deleteForo(id, data = {}) {
+    return request(`/forums/${id}`, {
+      method: 'DELETE',
+      params: {
+        requesterId: toNumberOrNull(data.requesterId || data.solicitanteId),
+        requesterRole: roleValue(data.requesterRole || data.solicitanteRol || data.rol),
+      },
+    });
+  },
+
   async votarForo(id) {
     return mapForum(await request(`/forums/${id}/vote`, { method: 'POST' }));
   },
@@ -429,13 +481,40 @@ export const tidApi = {
   async createAnuncio(data) {
     const announcement = await request('/announcements', {
       method: 'POST',
-      body: { title: data.titulo, content: data.contenido, date: data.fecha },
+      body: {
+        title: data.titulo,
+        content: data.contenido,
+        date: data.fecha,
+        authorId: toNumberOrNull(data.authorId || data.autorId),
+        requesterRole: roleValue(data.requesterRole || data.solicitanteRol || data.rol),
+      },
     });
     return mapAnnouncement(announcement);
   },
 
-  async deleteAnuncio(id) {
-    return request(`/announcements/${id}`, { method: 'DELETE' });
+  async updateAnuncio(id, data) {
+    const announcement = await request(`/announcements/${id}`, {
+      method: 'PUT',
+      body: {
+        title: data.titulo,
+        content: data.contenido,
+        date: data.fecha,
+        authorId: toNumberOrNull(data.authorId || data.autorId),
+        requesterId: toNumberOrNull(data.requesterId || data.solicitanteId || data.authorId || data.autorId),
+        requesterRole: roleValue(data.requesterRole || data.solicitanteRol || data.rol),
+      },
+    });
+    return mapAnnouncement(announcement);
+  },
+
+  async deleteAnuncio(id, data = {}) {
+    return request(`/announcements/${id}`, {
+      method: 'DELETE',
+      params: {
+        requesterId: toNumberOrNull(data.requesterId || data.solicitanteId),
+        requesterRole: roleValue(data.requesterRole || data.solicitanteRol || data.rol),
+      },
+    });
   },
 
   async getDashboardMetrics() {

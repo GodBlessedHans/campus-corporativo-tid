@@ -3,15 +3,29 @@ import { EmptyState, FormField, Modal } from '../../../components/components.jsx
 import { COLORS } from '../../../components/theme.js';
 import { confirm, toast } from '../../../helpers/alerts.js';
 import { tidApi } from '../../../services/tid.js';
-import { Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 
 export default function SeccionAnunciosListados({ anuncios = [], session, revalidator }) {
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [form, setForm] = React.useState({ titulo: '', contenido: '', prioridad: 'Media' });
   const isAdmin = session?.rol === 'Admin';
+  const isStudent = session?.rol === 'Estudiante';
+  const isEditing = Boolean(form.id);
 
-  const handleCreate = async () => {
+  const canManage = (anuncio) => isAdmin || Number(anuncio.authorId) === Number(session?.id);
+
+  const openCreate = () => {
+    setForm({ titulo: '', contenido: '', prioridad: 'Media' });
+    setOpen(true);
+  };
+
+  const openEdit = (anuncio) => {
+    setForm({ ...anuncio, fecha: anuncio.fecha || new Date().toISOString().slice(0, 10) });
+    setOpen(true);
+  };
+
+  const handleSave = async () => {
     if (!form.titulo.trim() || !form.contenido.trim()) {
       toast.warning('Completa título y contenido', 'Campos requeridos');
       return;
@@ -19,18 +33,25 @@ export default function SeccionAnunciosListados({ anuncios = [], session, revali
 
     setSaving(true);
     try {
-      await tidApi.createAnuncio({
+      const payload = {
         titulo: form.titulo.trim(),
         contenido: form.contenido.trim(),
         prioridad: form.prioridad,
-        fecha: new Date().toISOString().slice(0, 10),
-      });
+        fecha: form.fecha || new Date().toISOString().slice(0, 10),
+        autorId: form.authorId || session.id,
+        requesterId: session.id,
+        requesterRole: session.rol,
+      };
+
+      if (isEditing) await tidApi.updateAnuncio(form.id, payload);
+      else await tidApi.createAnuncio(payload);
+
       setOpen(false);
       setForm({ titulo: '', contenido: '', prioridad: 'Media' });
-      toast.success('Anuncio creado');
+      toast.success(isEditing ? 'Anuncio actualizado' : 'Anuncio creado');
       revalidator.revalidate();
     } catch (error) {
-      toast.error(error.message || 'No se pudo crear el anuncio');
+      toast.error(error.message || 'No se pudo guardar el anuncio');
     } finally {
       setSaving(false);
     }
@@ -47,7 +68,7 @@ export default function SeccionAnunciosListados({ anuncios = [], session, revali
     if (!ok) return;
 
     try {
-      await tidApi.deleteAnuncio(anuncio.id);
+      await tidApi.deleteAnuncio(anuncio.id, { requesterId: session.id, requesterRole: session.rol });
       toast.success('Anuncio eliminado');
       revalidator.revalidate();
     } catch (error) {
@@ -58,8 +79,8 @@ export default function SeccionAnunciosListados({ anuncios = [], session, revali
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-        {isAdmin && (
-          <button className="btn btn-primary" onClick={() => setOpen(true)}>
+        {!isStudent && (
+          <button className="btn btn-primary" onClick={openCreate}>
             <Plus size={16} /> Nuevo anuncio
           </button>
         )}
@@ -82,10 +103,15 @@ export default function SeccionAnunciosListados({ anuncios = [], session, revali
                     </span>
                   </div>
                 </div>
-                {isAdmin && (
-                  <button className="btn btn-danger btn-sm" onClick={() => handleDelete(anuncio)} style={{ padding: '6px 10px' }}>
-                    <Trash2 size={14} />
-                  </button>
+                {canManage(anuncio) && (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button className="btn btn-secondary btn-sm" onClick={() => openEdit(anuncio)} style={{ padding: '6px 10px' }}>
+                      <Pencil size={14} />
+                    </button>
+                    <button className="btn btn-danger btn-sm" onClick={() => handleDelete(anuncio)} style={{ padding: '6px 10px' }}>
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
                 )}
               </div>
               <div className="card-body">
@@ -99,12 +125,12 @@ export default function SeccionAnunciosListados({ anuncios = [], session, revali
       <Modal
         open={open}
         onClose={() => setOpen(false)}
-        title="Nuevo anuncio"
+        title={isEditing ? 'Editar anuncio' : 'Nuevo anuncio'}
         footer={
           <>
             <button className="btn btn-secondary" onClick={() => setOpen(false)}>Cancelar</button>
-            <button className="btn btn-primary" onClick={handleCreate} disabled={saving}>
-              {saving ? 'Guardando...' : 'Publicar'}
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+              {saving ? 'Guardando...' : isEditing ? 'Guardar cambios' : 'Publicar'}
             </button>
           </>
         }
