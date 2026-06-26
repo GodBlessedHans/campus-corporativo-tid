@@ -8,6 +8,7 @@ export default function AttendanceAssessmentsPage() {
   const revalidator = useRevalidator();
   const { session } = useRouteLoaderData('root');
   const { cursos, calificaciones, asistencias } = useLoaderData();
+  const sessionName = `${session.firstName} ${session.lastName}`.trim();
 
   const [tab, setTab] = React.useState('calificaciones');
   const [filtroCurso, setFiltroCurso] = React.useState('todos');
@@ -45,7 +46,7 @@ export default function AttendanceAssessmentsPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div className="page-header" style={{ margin: 0 }}>
           <h2>Asistencia y Evaluaciones</h2>
-          <p>Seguimiento académico de {session.nombre}</p>
+          <p>Seguimiento académico de {sessionName}</p>
         </div>
         <button className="btn btn-secondary" onClick={() => revalidator.revalidate()} disabled={revalidator.state !== 'idle'}>
           <RefreshCw size={16} /> Actualizar

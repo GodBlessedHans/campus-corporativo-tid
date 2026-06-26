@@ -1,5 +1,5 @@
 export const levelBadge = (nivel) => {
-  const map = { Básico: 'badge-green', Intermedio: 'badge-yellow', Avanzado: 'badge-red' };
+  const map = { Básico: 'badge-green', Basico: 'badge-green', Intermedio: 'badge-yellow', Avanzado: 'badge-red' };
   return map[nivel] || 'badge-gray';
 };
 

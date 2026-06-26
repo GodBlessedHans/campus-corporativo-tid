@@ -19,6 +19,18 @@ export const EmptyState = ({ icon = null, title = 'Sin resultados', subtitle }) 
   </div>
 );
 
+export const ErrorState = ({ title = 'Ocurrió un error', message, onRetry }) => (
+  <div className="empty-state" style={{ borderColor: COLORS.danger }}>
+    <p style={{ marginTop: 12, fontWeight: 700, color: COLORS.danger }}>{title}</p>
+    {message && <p style={{ fontSize: 13, marginTop: 6 }}>{message}</p>}
+    {onRetry && (
+      <button className="btn btn-secondary" onClick={onRetry} style={{ marginTop: 14, justifyContent: 'center' }}>
+        Reintentar
+      </button>
+    )}
+  </div>
+);
+
 export const Modal = ({ open, onClose, title, children, footer }) => {
   if (!open) return null;
   return (
@@ -47,7 +59,7 @@ export const FormField = ({ label, error, children }) => (
 
 export const CourseCard = ({ curso, categorias = [], onEnroll, onDetail, inscrito = false, progress = null }) => {
   const cat = categorias.find((c) => c.id === curso.categoria_id);
-  const pct = Math.round((curso.inscritos / curso.max) * 100);
+  const pct = curso.max ? Math.round((curso.inscritos / curso.max) * 100) : 0;
   return (
     <div
       className="card"

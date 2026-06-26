@@ -6,6 +6,7 @@ import { BookOpen, LayoutDashboard, ClipboardList, CheckSquare, Megaphone, User,
 export default function RootLayout() {
   const { session } = useLoaderData();
   const navigate = useNavigate();
+  const sessionName = `${session.firstName} ${session.lastName}`.trim();
 
   const logout = () => {
     tidApi.logout();
@@ -34,7 +35,7 @@ export default function RootLayout() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
             <span style={{ fontFamily: 'DM Sans', fontSize: 16, fontWeight: 800, letterSpacing: '-0.2px' }}>Campus TID</span>
-            <span style={{ fontSize: 12, color: COLORS.textMuted }}>{session.rol}</span>
+            <span style={{ fontSize: 12, color: COLORS.textMuted }}>{session.role}</span>
           </div>
         </div>
 
@@ -61,7 +62,7 @@ export default function RootLayout() {
 
         <div style={{ marginTop: 18, paddingTop: 14, borderTop: `1px solid ${COLORS.border}` }}>
           <div style={{ fontSize: 12, color: COLORS.textSecondary, marginBottom: 10 }}>
-            {session.nombre}
+            {sessionName}
             <div style={{ color: COLORS.textMuted, fontWeight: 500 }}>{session.email}</div>
           </div>
           <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center' }} onClick={logout}>

@@ -1,46 +1,62 @@
 import React from 'react';
-import { useLoaderData, useRevalidator, useRouteLoaderData } from 'react-router-dom';
-import { CourseCard, EmptyState, FormField, Modal, Spinner } from '../../components/components.jsx';
+import { useLoaderData, useNavigate, useRevalidator, useRouteError, useRouteLoaderData } from 'react-router-dom';
+import { CourseCard, EmptyState, ErrorState, FormField, Modal, Spinner } from '../../components/components.jsx';
 import { levelBadge } from '../../components/badges.js';
 import { COLORS } from '../../components/theme.js';
 import { confirm, toast } from '../../helpers/alerts.js';
 import { tidApi } from '../../services/tid.js';
-import { BookOpen, Pencil, Search, Trash2, X } from 'lucide-react';
+import { BookOpen, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+
+export function CourseCatalogErrorPage() {
+  const error = useRouteError();
+  return (
+    <ErrorState
+      title="No se pudo cargar el catalogo"
+      message={error?.message || 'Verifica que la API este activa y que VITE_API_URL apunte al backend correcto.'}
+      onRetry={() => window.location.reload()}
+    />
+  );
+}
 
 export default function CourseCatalogPage() {
+  const navigate = useNavigate();
   const revalidator = useRevalidator();
   const { session } = useRouteLoaderData('root');
   const { cursos, categorias, inscripciones } = useLoaderData();
+  const isAdmin = session?.rol === 'Admin';
+  const isInstructor = session?.rol === 'Instructor';
+  const canCreateCurso = isInstructor;
 
   const [filtroCategoria, setFiltroCategoria] = React.useState(null);
   const [busqueda, setBusqueda] = React.useState('');
   const [filtroNivel, setFiltroNivel] = React.useState(null);
+  const [soloDisponibles, setSoloDisponibles] = React.useState(false);
+  const [ordenCursos, setOrdenCursos] = React.useState('recientes');
   const [detalleCurso, setDetalleCurso] = React.useState(null);
   const [modalCurso, setModalCurso] = React.useState(null);
 
-  const handleEnroll = async (curso) => {
-    const ok = await confirm({
-      title: `Inscribirme en ${curso.titulo}`,
-      message: `Duración: ${curso.duracion} · Nivel: ${curso.nivel}`,
-      okText: 'Confirmar inscripción',
-      cancelText: 'Cancelar',
-      color: COLORS.accent,
-    });
-    if (!ok) return;
-    try {
-      await tidApi.createInscripcion({ usuario_id: session.id, curso_id: curso.id, fecha: new Date().toISOString().split('T')[0] });
-      toast.success(`Ahora tienes acceso a "${curso.titulo}"`, '¡Inscripción exitosa!');
-      revalidator.revalidate();
-    } catch (e) {
-      toast.error(e.message);
+  const handleEnroll = (curso) => {
+    if (curso.max > 0 && curso.inscritos >= curso.max) {
+      toast.warning('Este curso no tiene cupos disponibles.', 'Cupos agotados');
+      return;
     }
+    navigate(`/registration-management/process/${curso.id}`);
   };
 
   const [formCurso, setFormCurso] = React.useState({});
   const [savingCurso, setSavingCurso] = React.useState(false);
 
   const openCreateCurso = () => {
-    setFormCurso({ titulo: '', categoria_id: '', instructor: '', duracion: '', nivel: 'Básico', max: 30, descripcion: '' });
+    setFormCurso({
+      titulo: '',
+      categoria_id: '',
+      instructor: isInstructor ? session.nombre : '',
+      instructor_id: isInstructor ? session.id : '',
+      duracion: '',
+      nivel: 'Basico',
+      max: 30,
+      descripcion: '',
+    });
     setModalCurso('create');
   };
   const openEditCurso = (c) => {
@@ -48,58 +64,108 @@ export default function CourseCatalogPage() {
     setModalCurso('edit');
   };
   const handleSaveCurso = async () => {
-    if (!formCurso.titulo || !formCurso.categoria_id || !formCurso.instructor) {
-      toast.warning('Completa título, categoría e instructor.', 'Campos requeridos');
+    const cuposMaximos = Number(formCurso.max);
+    if (!formCurso.titulo?.trim() || !formCurso.categoria_id || !formCurso.instructor?.trim()) {
+      toast.warning('Completa titulo, categoria e instructor.', 'Campos requeridos');
+      return;
+    }
+    if (!Number.isFinite(cuposMaximos) || cuposMaximos < 1) {
+      toast.warning('Los cupos maximos deben ser mayores a cero.', 'Campos requeridos');
       return;
     }
     setSavingCurso(true);
     try {
-      if (modalCurso === 'create') await tidApi.createCurso({ ...formCurso, categoria_id: parseInt(formCurso.categoria_id), max: parseInt(formCurso.max) });
-      else await tidApi.updateCurso(formCurso.id, { ...formCurso, categoria_id: parseInt(formCurso.categoria_id), max: parseInt(formCurso.max) });
+      const payload = {
+        ...formCurso,
+        titulo: formCurso.titulo.trim(),
+        instructor: formCurso.instructor.trim(),
+        instructor_id: isInstructor ? session.id : formCurso.instructor_id || '',
+        descripcion: formCurso.descripcion?.trim() || '',
+        categoria_id: Number(formCurso.categoria_id),
+        max: cuposMaximos,
+      };
+      if (modalCurso === 'create') await tidApi.createCurso(payload);
+      else await tidApi.updateCurso(formCurso.id, payload);
       setModalCurso(null);
       toast.success(modalCurso === 'create' ? 'Curso creado' : 'Curso actualizado');
       revalidator.revalidate();
+    } catch (e) {
+      toast.error(e.message || 'No se pudo guardar el curso.');
     } finally {
       setSavingCurso(false);
     }
   };
   const handleDeleteCurso = async (c) => {
     const ok = await confirm({
-      title: `¿Eliminar "${c.titulo}"?`,
-      message: 'Esta acción no se puede deshacer.',
+      title: `Eliminar "${c.titulo}"?`,
+      message: 'Esta accion no se puede deshacer.',
       okText: 'Eliminar',
       cancelText: 'Cancelar',
       color: COLORS.danger,
     });
     if (!ok) return;
-    await tidApi.deleteCurso(c.id);
-    toast.success('Eliminado');
-    revalidator.revalidate();
+    try {
+      await tidApi.deleteCurso(c.id);
+      toast.success('Curso eliminado');
+      revalidator.revalidate();
+    } catch (e) {
+      toast.error(e.message || 'No se pudo eliminar el curso.');
+    }
   };
 
   const cursosFiltrados = cursos.filter((c) => {
     if (filtroCategoria && c.categoria_id !== filtroCategoria) return false;
     if (filtroNivel && c.nivel !== filtroNivel) return false;
+    if (soloDisponibles && c.max > 0 && c.inscritos >= c.max) return false;
     if (busqueda && !c.titulo.toLowerCase().includes(busqueda.toLowerCase()) && !c.descripcion.toLowerCase().includes(busqueda.toLowerCase())) return false;
     return true;
   });
 
+  const cursosOrdenados = [...cursosFiltrados].sort((a, b) => {
+    if (ordenCursos === 'titulo') return a.titulo.localeCompare(b.titulo);
+    if (ordenCursos === 'cupos') return (b.max - b.inscritos) - (a.max - a.inscritos);
+    return b.id - a.id;
+  });
+
+const totalCupos = cursos.reduce((total, curso) => total + curso.max, 0);
+const totalInscritos = cursos.reduce((total, curso) => total + curso.inscritos, 0);
+const cursosConCupos = cursos.filter((curso) => curso.max > curso.inscritos).length;
+
   const isInscrito = (cursoId) => inscripciones.some((i) => i.curso_id === cursoId);
+  const canManageCurso = (curso) => {
+    if (isAdmin) return true;
+    if (!isInstructor) return false;
+    return Number(curso.instructor_id) === Number(session.id) || curso.instructor === session.nombre;
+  };
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 28, flexWrap: 'wrap', gap: 12 }}>
         <div className="page-header" style={{ margin: 0 }}>
-          <h2>Catálogo de Cursos</h2>
+          <h2>Catalogo de Cursos</h2>
           <p>
-            {cursos.length} cursos disponibles · {inscripciones.length} inscripciones activas
+            {cursos.length} cursos disponibles - {inscripciones.length} inscripciones activas
           </p>
         </div>
-        {session?.rol === 'Admin' && (
+        {canCreateCurso && (
           <button className="btn btn-primary" onClick={openCreateCurso}>
-            + Nuevo curso
-          </button>
+            <Plus size={16} /> Nuevo curso
+          </button>   
         )}
+        <div className="grid-3" style={{ marginBottom: 24 }}>
+  <div className="stat-card">
+    <span className="stat-label">Cursos con cupos</span>
+    <span className="stat-value">{cursosConCupos}</span>
+  </div>
+  <div className="stat-card">
+    <span className="stat-label">Cupos totales</span>
+    <span className="stat-value">{totalCupos}</span>
+  </div>
+  <div className="stat-card">
+    <span className="stat-label">Inscritos</span>
+    <span className="stat-value">{totalInscritos}</span>
+  </div>
+</div>
       </div>
 
       {revalidator.state !== 'idle' && <Spinner text="Actualizando..." />}
@@ -128,22 +194,39 @@ export default function CourseCatalogPage() {
           })}
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          {['Básico', 'Intermedio', 'Avanzado'].map((n) => (
+          {['Basico', 'Intermedio', 'Avanzado'].map((n) => (
             <span key={n} className={`tag ${filtroNivel === n ? 'tag-active' : 'tag-inactive'}`} onClick={() => setFiltroNivel(filtroNivel === n ? null : n)} style={{ fontSize: 11 }}>
               {n}
             </span>
           ))}
+          <span
+            className={`tag ${soloDisponibles ? 'tag-active' : 'tag-inactive'}`}
+            onClick={() => setSoloDisponibles((value) => !value)}
+            style={{ fontSize: 11 }}
+          >
+            Con cupos
+          </span>
+          <select
+            className="form-input"
+            value={ordenCursos}
+            onChange={(e) => setOrdenCursos(e.target.value)}
+            style={{ width: 180 }}
+          >
+            <option value="recientes">Mas recientes</option>
+            <option value="titulo">Titulo A-Z</option>
+            <option value="cupos">Mas cupos</option>
+          </select>
         </div>
       </div>
 
       {cursosFiltrados.length === 0 ? (
-        <EmptyState icon={<BookOpen size={44} color={COLORS.textMuted} />} title="No se encontraron cursos" subtitle="Prueba con otros filtros o términos de búsqueda" />
+        <EmptyState icon={<BookOpen size={44} color={COLORS.textMuted} />} title="No se encontraron cursos" subtitle="Prueba con otros filtros o terminos de busqueda" />
       ) : (
         <div className="grid-3">
-          {cursosFiltrados.map((c) => (
+          {cursosOrdenados.map((c) => (
             <div key={c.id} style={{ position: 'relative' }}>
               <CourseCard curso={c} categorias={categorias} inscrito={isInscrito(c.id)} onEnroll={handleEnroll} onDetail={setDetalleCurso} />
-              {session?.rol === 'Admin' && (
+              {canManageCurso(c) && (
                 <div style={{ position: 'absolute', top: 8, right: 8, display: 'flex', gap: 4 }}>
                   <button className="btn btn-secondary btn-sm" style={{ padding: '3px 8px', fontSize: 11 }} onClick={() => openEditCurso(c)}>
                     <Pencil size={14} />
@@ -199,7 +282,7 @@ export default function CourseCatalogPage() {
                 <div className="grid-2" style={{ gap: 12 }}>
                   {[
                     ['Instructor', detalleCurso.instructor],
-                    ['Duración', detalleCurso.duracion],
+                    ['Duracion', detalleCurso.duracion],
                     ['Cupos', `${detalleCurso.inscritos}/${detalleCurso.max}`],
                   ].map(([l, v]) => (
                     <div key={l} style={{ background: COLORS.surface2, borderRadius: 8, padding: '12px 14px' }}>
@@ -235,11 +318,11 @@ export default function CourseCatalogPage() {
         }
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <FormField label="Título">
+          <FormField label="Titulo">
             <input className="form-input" value={formCurso.titulo || ''} onChange={(e) => setFormCurso((p) => ({ ...p, titulo: e.target.value }))} placeholder="Nombre del curso" />
           </FormField>
           <div className="grid-2">
-            <FormField label="Categoría">
+            <FormField label="Categoria">
               <select className="form-input" value={formCurso.categoria_id || ''} onChange={(e) => setFormCurso((p) => ({ ...p, categoria_id: e.target.value }))}>
                 <option value="">Seleccionar...</option>
                 {categorias.map((c) => (
@@ -250,8 +333,8 @@ export default function CourseCatalogPage() {
               </select>
             </FormField>
             <FormField label="Nivel">
-              <select className="form-input" value={formCurso.nivel || 'Básico'} onChange={(e) => setFormCurso((p) => ({ ...p, nivel: e.target.value }))}>
-                {['Básico', 'Intermedio', 'Avanzado'].map((n) => (
+              <select className="form-input" value={formCurso.nivel || 'Basico'} onChange={(e) => setFormCurso((p) => ({ ...p, nivel: e.target.value }))}>
+                {['Basico', 'Intermedio', 'Avanzado'].map((n) => (
                   <option key={n} value={n}>
                     {n}
                   </option>
@@ -261,17 +344,23 @@ export default function CourseCatalogPage() {
           </div>
           <div className="grid-2">
             <FormField label="Instructor">
-              <input className="form-input" value={formCurso.instructor || ''} onChange={(e) => setFormCurso((p) => ({ ...p, instructor: e.target.value }))} placeholder="Nombre del instructor" />
+              <input
+                className="form-input"
+                value={formCurso.instructor || ''}
+                onChange={(e) => setFormCurso((p) => ({ ...p, instructor: e.target.value }))}
+                placeholder="Nombre del instructor"
+                disabled={isInstructor}
+              />
             </FormField>
-            <FormField label="Duración">
+            <FormField label="Duracion">
               <input className="form-input" value={formCurso.duracion || ''} onChange={(e) => setFormCurso((p) => ({ ...p, duracion: e.target.value }))} placeholder="Ej: 40h" />
             </FormField>
           </div>
-          <FormField label="Cupos máximos">
+          <FormField label="Cupos maximos">
             <input type="number" className="form-input" value={formCurso.max || ''} onChange={(e) => setFormCurso((p) => ({ ...p, max: e.target.value }))} />
           </FormField>
-          <FormField label="Descripción">
-            <textarea className="form-input" rows={3} value={formCurso.descripcion || ''} onChange={(e) => setFormCurso((p) => ({ ...p, descripcion: e.target.value }))} placeholder="Descripción del curso..." style={{ resize: 'vertical' }} />
+          <FormField label="Descripcion">
+            <textarea className="form-input" rows={3} value={formCurso.descripcion || ''} onChange={(e) => setFormCurso((p) => ({ ...p, descripcion: e.target.value }))} placeholder="Descripcion del curso..." style={{ resize: 'vertical' }} />
           </FormField>
         </div>
       </Modal>

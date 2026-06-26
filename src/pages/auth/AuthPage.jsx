@@ -30,7 +30,7 @@ function LoginView({ loading, setLoading, goToRecover, goToRegister, onAuthentic
     setLoading(true);
     try {
       const session = await tidApi.login(form.email, form.password);
-      toast.success(`Hola, ${session.nombre}`, '¡Bienvenido!');
+      toast.success(`Hola, ${session.firstName} ${session.lastName}`, '¡Bienvenido!');
       onAuthenticated();
     } catch (err) {
       toast.error(err?.message || 'No se pudo iniciar sesión');
@@ -106,17 +106,19 @@ function LoginView({ loading, setLoading, goToRecover, goToRegister, onAuthentic
 }
 
 function RegistroView({ loading, setLoading, goToLogin }) {
-  const [form, setForm] = React.useState({ nombre: '', email: '', telefono: '', area: '', password: '', confirmar: '' });
+  const [form, setForm] = React.useState({ firstName: '', lastName: '', email: '', phone: '', document: '', address: '', password: '', confirmPassword: '' });
   const [errors, setErrors] = React.useState({});
   const [touched, setTouched] = React.useState({});
 
   const rules = {
-    nombre: (v) => (!v ? 'El nombre es requerido' : v.length < 3 ? 'Mínimo 3 caracteres' : ''),
+    firstName: (v) => (!v ? 'El nombre es requerido' : v.length < 2 ? 'Mínimo 2 caracteres' : ''),
+    lastName: (v) => (!v ? 'El apellido es requerido' : v.length < 2 ? 'Mínimo 2 caracteres' : ''),
     email: (v) => (!v ? 'El correo es requerido' : !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? 'Correo no válido' : ''),
-    telefono: (v) => (v && !/^\d{7,15}$/.test(v.replace(/[-\s]/g, '')) ? 'Teléfono no válido' : ''),
-    area: (v) => (!v ? 'El área es requerida' : ''),
+    phone: (v) => (v && !/^\d{7,15}$/.test(v.replace(/[-\s]/g, '')) ? 'Teléfono no válido' : ''),
+    document: (v) => (v && v.length > 40 ? 'Máximo 40 caracteres' : ''),
+    address: (v) => (v && v.length > 240 ? 'Máximo 240 caracteres' : ''),
     password: (v) => (!v ? 'La contraseña es requerida' : v.length < 6 ? 'Mínimo 6 caracteres' : ''),
-    confirmar: (v) => (!v ? 'Confirma tu contraseña' : v !== form.password ? 'Las contraseñas no coinciden' : ''),
+    confirmPassword: (v) => (!v ? 'Confirma tu contraseña' : v !== form.password ? 'Las contraseñas no coinciden' : ''),
   };
 
   const validate = (field, val) => {
@@ -128,7 +130,7 @@ function RegistroView({ loading, setLoading, goToLogin }) {
   const handleChange = (field, val) => {
     setForm((p) => ({ ...p, [field]: val }));
     if (touched[field]) validate(field, val);
-    if (field === 'password' && touched.confirmar) validate('confirmar', form.confirmar);
+    if (field === 'password' && touched.confirmPassword) validate('confirmPassword', form.confirmPassword);
   };
 
   const handleBlur = (field) => {
@@ -155,7 +157,16 @@ function RegistroView({ loading, setLoading, goToLogin }) {
 
     setLoading(true);
     try {
-      await tidApi.registro({ nombre: form.nombre, email: form.email, telefono: form.telefono, area: form.area, password: form.password });
+      await tidApi.registro({
+        firstName: form.firstName,
+        lastName: form.lastName,
+        email: form.email,
+        phone: form.phone,
+        document: form.document,
+        address: form.address,
+        password: form.password,
+        confirmPassword: form.confirmPassword,
+      });
       toast.success('Tu cuenta ha sido creada. Inicia sesión.', '¡Registro exitoso!');
       goToLogin();
     } catch (err) {
@@ -191,37 +202,26 @@ function RegistroView({ loading, setLoading, goToLogin }) {
   return (
     <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div className="grid-2">
-        <FormField label="Nombre completo" error={touched.nombre && errors.nombre}>
-          <input {...field('nombre', 'text', 'Ej: Ana Gómez')} />
+        <FormField label="Nombre" error={touched.firstName && errors.firstName}>
+          <input {...field('firstName', 'text', 'Ej: Ana')} />
         </FormField>
-        <FormField label="Área / Departamento" error={touched.area && errors.area}>
-          <select
-            {...field('area')}
-            style={{
-              background: COLORS.surface2,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: 7,
-              color: !form.area ? COLORS.textMuted : COLORS.textPrimary,
-              padding: '10px 14px',
-              fontSize: 14,
-              width: '100%',
-              cursor: 'pointer',
-            }}
-          >
-            <option value="">Seleccionar...</option>
-            {['Tecnología', 'RRHH', 'Operaciones', 'Finanzas', 'Legal', 'Marketing'].map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-          </select>
+        <FormField label="Apellido" error={touched.lastName && errors.lastName}>
+          <input {...field('lastName', 'text', 'Ej: Gómez')} />
         </FormField>
       </div>
       <FormField label="Correo electrónico" error={touched.email && errors.email}>
         <input {...field('email', 'email', 'usuario@tid.com')} />
       </FormField>
-      <FormField label="Teléfono (opcional)" error={touched.telefono && errors.telefono}>
-        <input {...field('telefono', 'tel', '555-0000')} />
+      <div className="grid-2">
+        <FormField label="Teléfono (opcional)" error={touched.phone && errors.phone}>
+          <input {...field('phone', 'tel', '555-0000')} />
+        </FormField>
+        <FormField label="Documento (opcional)" error={touched.document && errors.document}>
+          <input {...field('document', 'text', 'Número de documento')} />
+        </FormField>
+      </div>
+      <FormField label="Dirección (opcional)" error={touched.address && errors.address}>
+        <input {...field('address', 'text', 'Dirección de residencia')} />
       </FormField>
       <FormField label="Contraseña" error={touched.password && errors.password}>
         <input {...field('password', 'password', 'Mínimo 6 caracteres')} />
@@ -234,8 +234,8 @@ function RegistroView({ loading, setLoading, goToLogin }) {
           </div>
         )}
       </FormField>
-      <FormField label="Confirmar contraseña" error={touched.confirmar && errors.confirmar}>
-        <input {...field('confirmar', 'password', 'Repite tu contraseña')} />
+      <FormField label="Confirmar contraseña" error={touched.confirmPassword && errors.confirmPassword}>
+        <input {...field('confirmPassword', 'password', 'Repite tu contraseña')} />
       </FormField>
       <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%', padding: '11px', justifyContent: 'center' }}>
         {loading ? (
@@ -258,55 +258,178 @@ function RegistroView({ loading, setLoading, goToLogin }) {
 
 function RecuperarView({ loading, setLoading, goToLogin }) {
   const [email, setEmail] = React.useState('');
-  const [error, setError] = React.useState('');
-  const [sent, setSent] = React.useState(false);
+  const [step, setStep] = React.useState('email');
+  const [recoveryCode, setRecoveryCode] = React.useState('');
+  const [codeInput, setCodeInput] = React.useState('');
+  const [passwords, setPasswords] = React.useState({ password: '', confirmPassword: '' });
+  const [errors, setErrors] = React.useState({});
+
+  const generateRecoveryCode = () => String(Math.floor(100000 + Math.random() * 900000));
 
   const handleSubmit = async (ev) => {
     ev.preventDefault();
+    const nextErrors = {};
     if (!email) {
-      setError('El correo es requerido');
+      nextErrors.email = 'El correo es requerido';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      nextErrors.email = 'Correo no válido';
+    }
+
+    if (Object.keys(nextErrors).length) {
+      setErrors(nextErrors);
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError('Correo no válido');
-      return;
-    }
-    setError('');
+
+    setErrors({});
     setLoading(true);
     try {
       await tidApi.recuperar(email);
-      setSent(true);
+      const code = generateRecoveryCode();
+      setRecoveryCode(code);
+      setStep('code');
+      toast.info(`Código de prueba: ${code}`, 'Simulación de correo');
+    } catch (err) {
+      toast.error(err?.message || 'No se pudo iniciar la recuperación');
     } finally {
       setLoading(false);
     }
   };
 
-  if (sent)
+  const handleVerifyCode = (ev) => {
+    ev.preventDefault();
+    if (!codeInput.trim()) {
+      setErrors({ code: 'Ingresa el código de recuperación' });
+      return;
+    }
+    if (codeInput.trim() !== recoveryCode) {
+      setErrors({ code: 'El código no coincide' });
+      return;
+    }
+    setErrors({});
+    setStep('password');
+  };
+
+  const handleResetPassword = async (ev) => {
+    ev.preventDefault();
+    const nextErrors = {};
+    if (!passwords.password) nextErrors.password = 'La nueva contraseña es requerida';
+    else if (passwords.password.length < 6) nextErrors.password = 'Mínimo 6 caracteres';
+    if (!passwords.confirmPassword) nextErrors.confirmPassword = 'Confirma tu contraseña';
+    else if (passwords.confirmPassword !== passwords.password) nextErrors.confirmPassword = 'Las contraseñas no coinciden';
+
+    if (Object.keys(nextErrors).length) {
+      setErrors(nextErrors);
+      return;
+    }
+
+    setErrors({});
+    setLoading(true);
+    try {
+      await tidApi.resetPasswordByEmail(email, passwords.password, passwords.confirmPassword);
+      setStep('success');
+      toast.success('Contraseña actualizada. Ya puedes iniciar sesión.', 'Recuperación exitosa');
+    } catch (err) {
+      toast.error(err?.message || 'No se pudo restablecer la contraseña');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (step === 'success')
     return (
       <div style={{ textAlign: 'center', padding: '20px 0', display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
-        <div style={{ fontSize: 56 }}>📧</div>
-        <h3 style={{ fontSize: 20, fontWeight: 700 }}>Revisa tu correo</h3>
-        <p style={{ color: COLORS.textSecondary, fontSize: 14 }}>
-          Si el correo <strong>{email}</strong> está registrado, recibirás instrucciones para restablecer tu contraseña en los próximos minutos.
-        </p>
+        <div style={{ fontSize: 56 }}>✅</div>
+        <h3 style={{ fontSize: 20, fontWeight: 700 }}>Contraseña restablecida</h3>
+        <p style={{ color: COLORS.textSecondary, fontSize: 14 }}>Tu contraseña fue actualizada correctamente.</p>
         <button className="btn btn-primary" onClick={goToLogin} style={{ marginTop: 8 }}>
-          Volver al inicio de sesión
+          Iniciar sesión
         </button>
       </div>
     );
 
+  if (step === 'code')
+    return (
+      <form onSubmit={handleVerifyCode} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <p style={{ color: COLORS.textSecondary, fontSize: 14 }}>
+          Simulamos el envío a <strong>{email}</strong>. Ingresa el código local para continuar.
+        </p>
+        <div style={{ background: COLORS.surface2, borderRadius: 8, padding: '12px 16px', fontSize: 13, color: COLORS.textSecondary }}>
+          Código de prueba: <strong style={{ color: COLORS.textPrimary, letterSpacing: 2 }}>{recoveryCode}</strong>
+        </div>
+        <FormField label="Código de recuperación" error={errors.code}>
+          <input
+            className={`form-input ${errors.code ? 'error' : codeInput ? 'valid' : ''}`}
+            inputMode="numeric"
+            maxLength={6}
+            placeholder="Ej: 123456"
+            value={codeInput}
+            onChange={(e) => {
+              setCodeInput(e.target.value.replace(/\D/g, ''));
+              setErrors({});
+            }}
+          />
+        </FormField>
+        <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '11px', justifyContent: 'center' }}>
+          Validar código
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={() => setStep('email')} style={{ width: '100%', justifyContent: 'center' }}>
+          <ArrowLeft size={16} /> Cambiar correo
+        </button>
+      </form>
+    );
+
+  if (step === 'password')
+    return (
+      <form onSubmit={handleResetPassword} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <p style={{ color: COLORS.textSecondary, fontSize: 14 }}>Código validado. Ahora define tu nueva contraseña.</p>
+        <FormField label="Nueva contraseña" error={errors.password}>
+          <input
+            type="password"
+            className={`form-input ${errors.password ? 'error' : passwords.password ? 'valid' : ''}`}
+            placeholder="Mínimo 6 caracteres"
+            value={passwords.password}
+            onChange={(e) => {
+              setPasswords((p) => ({ ...p, password: e.target.value }));
+              setErrors((p) => ({ ...p, password: '' }));
+            }}
+          />
+        </FormField>
+        <FormField label="Confirmar contraseña" error={errors.confirmPassword}>
+          <input
+            type="password"
+            className={`form-input ${errors.confirmPassword ? 'error' : passwords.confirmPassword ? 'valid' : ''}`}
+            placeholder="Repite tu contraseña"
+            value={passwords.confirmPassword}
+            onChange={(e) => {
+              setPasswords((p) => ({ ...p, confirmPassword: e.target.value }));
+              setErrors((p) => ({ ...p, confirmPassword: '' }));
+            }}
+          />
+        </FormField>
+        <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%', padding: '11px', justifyContent: 'center' }}>
+          {loading ? (
+            <>
+              <div className="spinner" style={{ width: 16, height: 16 }}></div> Actualizando...
+            </>
+          ) : (
+            'Restablecer contraseña'
+          )}
+        </button>
+      </form>
+    );
+
   return (
     <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <p style={{ color: COLORS.textSecondary, fontSize: 14 }}>Ingresa tu correo y te enviaremos instrucciones para recuperar tu contraseña.</p>
-      <FormField label="Correo electrónico" error={error}>
+      <p style={{ color: COLORS.textSecondary, fontSize: 14 }}>Ingresa tu correo y generaremos un código local que simula el código enviado por email.</p>
+      <FormField label="Correo electrónico" error={errors.email}>
         <input
           type="email"
-          className={`form-input ${error ? 'error' : email ? 'valid' : ''}`}
+          className={`form-input ${errors.email ? 'error' : email ? 'valid' : ''}`}
           placeholder="usuario@tid.com"
           value={email}
           onChange={(e) => {
             setEmail(e.target.value);
-            setError('');
+            setErrors({});
           }}
         />
       </FormField>
