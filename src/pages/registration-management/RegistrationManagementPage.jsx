@@ -10,6 +10,7 @@ export default function RegistrationManagementPage() {
   const revalidator = useRevalidator();
   const { session } = useRouteLoaderData('root');
   const { cursos, inscripciones } = useLoaderData();
+  const sessionName = `${session.firstName} ${session.lastName}`.trim();
 
   const cursoById = React.useMemo(() => {
     const m = new Map();
@@ -43,7 +44,7 @@ export default function RegistrationManagementPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div className="page-header" style={{ margin: 0 }}>
           <h2>Inscripciones</h2>
-          <p>{session.nombre}</p>
+          <p>{sessionName}</p>
         </div>
         <button className="btn btn-secondary" onClick={() => revalidator.revalidate()} disabled={revalidator.state !== 'idle'}>
           <RefreshCw size={16} /> Actualizar

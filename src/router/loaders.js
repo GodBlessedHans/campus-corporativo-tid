@@ -50,6 +50,10 @@ export async function attendanceAssessmentsLoader() {
 }
 
 export async function internalComunicationsLoader() {
-  requireSessionLoader();
-  return { anuncios: await tidApi.getAnuncios() };
+  const { session } = requireSessionLoader();
+  const [anuncios, contactos] = await Promise.all([
+    tidApi.getAnuncios(),
+    tidApi.getUsuarios().then((users) => users.filter((user) => user.id !== session.id)).catch(() => []),
+  ]);
+  return { anuncios, foros: [], contactos };
 }

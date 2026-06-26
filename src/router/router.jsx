@@ -3,10 +3,13 @@ import RootLayout from "../components/layout/RootLayout.jsx";
 import AuthPage from "../pages/auth/AuthPage.jsx";
 import DashboardPage from "../pages/analytical-dashboard/DashboardPage.jsx";
 import AttendanceAssessmentsPage from "../pages/attendance-assessments/AttendanceAssessmentsPage.jsx";
+import ContributorProfileDetailsPage from "../pages/contributor-profile/ContributorProfileDetailsPage.jsx";
 import ContributorProfilePage from "../pages/contributor-profile/ContributorProfilePage.jsx";
 import CourseCatalogPage from "../pages/course-catalog/CourseCatalogPage.jsx";
 import InternalComunicationsPage from "../pages/internal-comunications/InternalComunicationsPage.jsx";
+import RegistrationConfirmationPage from "../pages/registration-management/RegistrationConfirmationPage.jsx";
 import RegistrationManagementPage from "../pages/registration-management/RegistrationManagementPage.jsx";
+import RegistrationProcessPage from "../pages/registration-management/RegistrationProcessPage.jsx";
 import {
   attendanceAssessmentsLoader,
   courseCatalogLoader,
@@ -34,6 +37,15 @@ export const router = createBrowserRouter([
         element: <RegistrationManagementPage />,
       },
       {
+        path: "/registration-management/process/:id",
+        loader: registrationManagementLoader,
+        element: <RegistrationProcessPage />,
+      },
+      {
+        path: "/registration-management/success",
+        element: <RegistrationConfirmationPage />,
+      },
+      {
         path: "/attendance-assessments",
         loader: attendanceAssessmentsLoader,
         element: <AttendanceAssessmentsPage />,
@@ -44,6 +56,7 @@ export const router = createBrowserRouter([
         element: <InternalComunicationsPage />,
       },
       { path: "/contributor-profile", element: <ContributorProfilePage /> },
+      { path: "/contributor-profile/details", element: <ContributorProfileDetailsPage /> },
     ],
   },
 ]);
