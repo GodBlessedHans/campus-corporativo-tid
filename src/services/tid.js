@@ -63,6 +63,7 @@ const roleLabel = (role) =>
     ADMIN: 'Admin',
     INSTRUCTOR: 'Instructor',
     TEACHER: 'Instructor',
+    PROFESSOR: 'Instructor',
     STUDENT: 'Estudiante',
   })[role] || role;
 
@@ -72,6 +73,7 @@ const roleValue = (role) =>
     Administrador: 'ADMIN',
     Instructor: 'INSTRUCTOR',
     TEACHER: 'INSTRUCTOR',
+    PROFESSOR: 'INSTRUCTOR',
     Estudiante: 'STUDENT',
   })[role] || role;
 
@@ -100,7 +102,8 @@ const mapUser = (user) => ({
 });
 
 const normalizeSession = (session) => {
-  if (!session || session.firstName) return session;
+  if (!session) return session;
+  if (session.firstName) return mapUser(session);
   const [firstName = '', ...lastNameParts] = (session.nombre || '').split(' ');
   return mapUser({
     ...session,
@@ -119,33 +122,45 @@ const mapCategory = (category, index = 0) => ({
   totalCursos: category.courseCount || 0,
 });
 
+const parseDurationHours = (duration) => {
+  const match = String(duration || '').match(/\d+/);
+  return match ? Number(match[0]) : null;
+};
+
 const mapCourse = (course, enrollments = []) => ({
   id: course.id,
-  titulo: course.title,
-  title: course.title,
-  descripcion: course.description,
-  description: course.description,
-  categoria_id: course.categoryId,
-  categoryId: course.categoryId,
-  categoryName: course.categoryName,
-  instructor: course.categoryName || 'Campus TID',
-  duracion: course.startDate && course.endDate ? `${course.startDate} - ${course.endDate}` : 'Por definir',
-  nivel: course.active ? 'Basico' : 'Inactivo',
-  inscritos: enrollments.filter((enrollment) => enrollment.courseId === course.id && enrollment.status !== 'CANCELADO').length,
-  max: course.capacity || 0,
-  capacity: course.capacity,
+  titulo: course.titulo || course.title,
+  title: course.title || course.titulo,
+  descripcion: course.descripcion || course.description,
+  description: course.description || course.descripcion,
+  categoria_id: course.categoriaId || course.categoryId,
+  categoryId: course.categoryId || course.categoriaId,
+  categoryName: course.categoriaNombre || course.categoryName,
+  instructor_id: course.instructorId || course.instructor_id,
+  instructor: course.instructor || course.categoriaNombre || course.categoryName || 'Campus TID',
+  duracion: course.duracion || course.duration || (course.startDate && course.endDate ? `${course.startDate} - ${course.endDate}` : 'Por definir'),
+  durationHours: course.durationHours || course.duracionHoras || parseDurationHours(course.duracion || course.duration),
+  nivel: course.nivel || course.level || (course.active ? 'Basico' : 'Inactivo'),
+  inscritos: Number(course.inscritos ?? course.enrolledCount ?? enrollments.filter((enrollment) => enrollment.courseId === course.id && enrollment.status !== 'CANCELADO').length),
+  max: course.max || course.cuposMaximos || course.capacity || 0,
+  capacity: course.capacity || course.max || course.cuposMaximos,
   startDate: course.startDate,
   endDate: course.endDate,
   active: course.active,
-  imagen: null,
+  imagen: course.imagen || course.imageUrl || null,
 });
+
+const toNumberOrNull = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : null;
+};
 
 const coursePayload = (data) => ({
   title: data.title || data.titulo,
   description: data.description || data.descripcion,
   categoryId: Number(data.categoryId || data.categoria_id),
-  startDate: data.startDate || null,
-  endDate: data.endDate || null,
+  instructorId: toNumberOrNull(data.instructorId || data.instructor_id),
+  durationHours: toNumberOrNull(data.durationHours || data.duracionHoras || data.duracion),
   capacity: data.capacity ?? data.max ?? null,
   active: data.active ?? data.nivel !== 'Inactivo',
 });
@@ -205,6 +220,37 @@ const mapAnnouncement = (announcement) => ({
   prioridad: 'Media',
 });
 
+const mapForum = (forum) => ({
+  id: forum.id,
+  titulo: forum.title,
+  title: forum.title,
+  categoria: forum.category,
+  category: forum.category,
+  contenido: forum.content || '',
+  authorId: forum.authorId,
+  autor: forum.authorName,
+  votos: forum.votes || 0,
+  respuestas: forum.repliesCount || 0,
+  fecha: toDate(forum.createdAt),
+  comentarios: (forum.comments || []).map((comment) => ({
+    id: comment.id,
+    authorId: comment.authorId,
+    autor: comment.authorName,
+    contenido: comment.content,
+    fecha: toDate(comment.createdAt),
+  })),
+});
+
+const mapDirectMessage = (message) => ({
+  id: message.id,
+  senderId: message.senderId,
+  receiverId: message.receiverId,
+  contenido: message.content,
+  content: message.content,
+  fecha: toDate(message.sentAt),
+  sentAt: message.sentAt,
+});
+
 export const tidApi = {
   API_BASE,
 
@@ -240,10 +286,7 @@ export const tidApi = {
   },
 
   async getCursos() {
-    const [courses, enrollments] = await Promise.all([
-      request('/courses'),
-      request('/enrollments').catch(() => []),
-    ]);
+    const [courses, enrollments] = await Promise.all([request('/courses'), request('/enrollments').catch(() => [])]);
     return courses.map((course) => mapCourse(course, enrollments));
   },
 
@@ -306,6 +349,61 @@ export const tidApi = {
   async getUsuarios() {
     const users = await request('/users');
     return users.map(mapUser);
+  },
+
+  async getForos() {
+    const forums = await request('/forums');
+    return forums.map(mapForum);
+  },
+
+  async createForo(data) {
+    const forum = await request('/forums', {
+      method: 'POST',
+      body: {
+        title: data.title || data.titulo,
+        category: data.category || data.categoria,
+        content: data.content || data.contenido,
+        authorId: toNumberOrNull(data.authorId || data.autorId),
+      },
+    });
+    return mapForum(forum);
+  },
+
+  async votarForo(id) {
+    return mapForum(await request(`/forums/${id}/vote`, { method: 'POST' }));
+  },
+
+  async comentarForo(id, data) {
+    const forum = await request(`/forums/${id}/comments`, {
+      method: 'POST',
+      body: {
+        authorId: toNumberOrNull(data.authorId || data.autorId),
+        content: data.content || data.contenido,
+      },
+    });
+    return mapForum(forum);
+  },
+
+  async getContactos(userId) {
+    const users = await request('/direct-messages/contacts', { params: { userId } });
+    return users.map(mapUser);
+  },
+
+  async getConversacion(userId, contactId) {
+    const messages = await request('/direct-messages', { params: { userId, contactId } });
+    return messages.map(mapDirectMessage);
+  },
+
+  async enviarMensaje(data) {
+    const message = await request('/direct-messages', {
+      method: 'POST',
+      body: {
+        senderId: toNumberOrNull(data.senderId || data.emisorId),
+        receiverId: toNumberOrNull(data.receiverId || data.receptorId),
+        content: data.content || data.contenido,
+      },
+    });
+    return mapDirectMessage(message);
   },
 
   async updatePerfil(id, data) {

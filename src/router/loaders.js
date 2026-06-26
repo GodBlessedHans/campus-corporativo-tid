@@ -25,12 +25,13 @@ export async function dashboardLoader() {
 
 export async function courseCatalogLoader() {
   const { session } = requireSessionLoader();
-  const [cursos, categorias, inscripciones] = await Promise.all([
+  const [cursos, categorias, inscripciones, usuarios] = await Promise.all([
     tidApi.getCursos(),
     tidApi.getCategorias(),
     tidApi.getInscripciones(session.id),
+    tidApi.getUsuarios().catch(() => []),
   ]);
-  return { cursos, categorias, inscripciones };
+  return { cursos, categorias, inscripciones, usuarios };
 }
 
 export async function registrationManagementLoader() {
@@ -51,9 +52,13 @@ export async function attendanceAssessmentsLoader() {
 
 export async function internalComunicationsLoader() {
   const { session } = requireSessionLoader();
-  const [anuncios, contactos] = await Promise.all([
-    tidApi.getAnuncios(),
-    tidApi.getUsuarios().then((users) => users.filter((user) => user.id !== session.id)).catch(() => []),
-  ]);
-  return { anuncios, foros: [], contactos };
+  const loadContactos = async () => {
+    const contactosApi = await tidApi.getContactos(session.id).catch(() => []);
+    if (contactosApi.length) return contactosApi;
+    return tidApi.getUsuarios()
+      .then((users) => users.filter((user) => Number(user.id) !== Number(session.id)))
+      .catch(() => []);
+  };
+  const [anuncios, foros, contactos] = await Promise.all([tidApi.getAnuncios(), tidApi.getForos(), loadContactos()]);
+  return { anuncios, foros, contactos };
 }

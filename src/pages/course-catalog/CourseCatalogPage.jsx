@@ -22,10 +22,11 @@ export default function CourseCatalogPage() {
   const navigate = useNavigate();
   const revalidator = useRevalidator();
   const { session } = useRouteLoaderData('root');
-  const { cursos, categorias, inscripciones } = useLoaderData();
+  const { cursos, categorias, inscripciones, usuarios = [] } = useLoaderData();
   const isAdmin = session?.rol === 'Admin';
   const isInstructor = session?.rol === 'Instructor';
-  const canCreateCurso = isInstructor;
+  const canCreateCurso = isInstructor || isAdmin;
+  const instructores = usuarios.filter((user) => user.rol === 'Instructor');
 
   const [filtroCategoria, setFiltroCategoria] = React.useState(null);
   const [busqueda, setBusqueda] = React.useState('');
@@ -52,7 +53,7 @@ export default function CourseCatalogPage() {
       categoria_id: '',
       instructor: isInstructor ? session.nombre : '',
       instructor_id: isInstructor ? session.id : '',
-      duracion: '',
+      duracion: 40,
       nivel: 'Basico',
       max: 30,
       descripcion: '',
@@ -65,8 +66,18 @@ export default function CourseCatalogPage() {
   };
   const handleSaveCurso = async () => {
     const cuposMaximos = Number(formCurso.max);
+    const duracionHoras = Number(formCurso.durationHours || formCurso.duracionHoras || formCurso.duracion);
+    const instructorId = isInstructor ? Number(session.id) : Number(formCurso.instructorId || formCurso.instructor_id);
     if (!formCurso.titulo?.trim() || !formCurso.categoria_id || !formCurso.instructor?.trim()) {
       toast.warning('Completa titulo, categoria e instructor.', 'Campos requeridos');
+      return;
+    }
+    if (!Number.isFinite(instructorId) || instructorId < 1) {
+      toast.warning('No se pudo identificar el instructor del curso.', 'Instructor requerido');
+      return;
+    }
+    if (!Number.isFinite(duracionHoras) || duracionHoras < 1) {
+      toast.warning('La duracion debe ser mayor a cero horas.', 'Campos requeridos');
       return;
     }
     if (!Number.isFinite(cuposMaximos) || cuposMaximos < 1) {
@@ -79,9 +90,12 @@ export default function CourseCatalogPage() {
         ...formCurso,
         titulo: formCurso.titulo.trim(),
         instructor: formCurso.instructor.trim(),
-        instructor_id: isInstructor ? session.id : formCurso.instructor_id || '',
+        instructor_id: instructorId,
+        instructorId,
         descripcion: formCurso.descripcion?.trim() || '',
         categoria_id: Number(formCurso.categoria_id),
+        duracion: duracionHoras,
+        durationHours: duracionHoras,
         max: cuposMaximos,
       };
       if (modalCurso === 'create') await tidApi.createCurso(payload);
@@ -344,16 +358,41 @@ const cursosConCupos = cursos.filter((curso) => curso.max > curso.inscritos).len
           </div>
           <div className="grid-2">
             <FormField label="Instructor">
-              <input
-                className="form-input"
-                value={formCurso.instructor || ''}
-                onChange={(e) => setFormCurso((p) => ({ ...p, instructor: e.target.value }))}
-                placeholder="Nombre del instructor"
-                disabled={isInstructor}
-              />
+              {isInstructor ? (
+                <input
+                  className="form-input"
+                  value={formCurso.instructor || ''}
+                  onChange={(e) => setFormCurso((p) => ({ ...p, instructor: e.target.value }))}
+                  placeholder="Nombre del instructor"
+                  disabled
+                />
+              ) : (
+                <select
+                  className="form-input"
+                  value={formCurso.instructor_id || ''}
+                  onChange={(e) => {
+                    const instructor = instructores.find((user) => Number(user.id) === Number(e.target.value));
+                    setFormCurso((p) => ({ ...p, instructor_id: e.target.value, instructor: instructor?.nombre || '' }));
+                  }}
+                >
+                  <option value="">Seleccionar instructor...</option>
+                  {instructores.map((instructor) => (
+                    <option key={instructor.id} value={instructor.id}>
+                      {instructor.nombre}
+                    </option>
+                  ))}
+                </select>
+              )}
             </FormField>
             <FormField label="Duracion">
-              <input className="form-input" value={formCurso.duracion || ''} onChange={(e) => setFormCurso((p) => ({ ...p, duracion: e.target.value }))} placeholder="Ej: 40h" />
+              <input
+                type="number"
+                min="1"
+                className="form-input"
+                value={formCurso.durationHours || formCurso.duracionHoras || formCurso.duracion || ''}
+                onChange={(e) => setFormCurso((p) => ({ ...p, duracion: e.target.value, durationHours: e.target.value }))}
+                placeholder="Horas de duracion"
+              />
             </FormField>
           </div>
           <FormField label="Cupos maximos">
